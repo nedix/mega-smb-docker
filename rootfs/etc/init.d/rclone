@@ -1,0 +1,75 @@
+#!/sbin/openrc-run
+
+extra_commands="healthcheck"
+
+PID_FILE=/var/run/rclone.pid
+
+start_pre() {
+    [ -f "$PID_FILE" ] && return
+
+    mkdir -p \
+        /mnt/rclone \
+        /var/rclone
+
+    chown nobody \
+        /mnt/rclone \
+        /var/rclone
+
+    echo "user_allow_other" >> /etc/fuse.conf
+}
+
+start() {
+    ebegin "Starting ${RC_SVCNAME}"
+
+    . /etc/rclone/.env
+
+    start-stop-daemon \
+        --start \
+        --background \
+        --make-pidfile \
+        --pidfile="$PID_FILE" \
+        --wait=100 \
+        -u nobody \
+        --exec /usr/bin/rclone -- \
+        mount default: /mnt/rclone \
+            --config=/etc/rclone/rclone.conf \
+            --cache-dir=/var/rclone \
+            --buffer-size="$BUFFER_SIZE"M \
+            --checkers="$TRANSFER_LIMIT" \
+            --cutoff-mode=soft \
+            --multi-thread-chunk-size="$CHUNK_SIZE"M \
+            --multi-thread-cutoff="$CHUNK_SIZE"M \
+            --multi-thread-streams="$STREAM_LIMIT" \
+            --noappledouble=false \
+            --transfers="$TRANSFER_LIMIT" \
+            --vfs-cache-max-size="$VFS_CACHE_MAX_SIZE"M \
+            --vfs-cache-mode=full \
+            --vfs-read-ahead="$VFS_READ_AHEAD"M \
+            --vfs-read-chunk-size-limit="$VFS_READ_CHUNK_SIZE_LIMIT"M \
+            --vfs-read-chunk-size="$VFS_READ_CHUNK_SIZE"M \
+            --allow-other \
+            --check-first \
+            --disable-http-keep-alives \
+            --links \
+            --metadata \
+            --server-side-across-configs \
+            --vfs-refresh
+
+    healthcheck && eend 0 || (stop; eend 1)
+}
+
+stop() {
+    ebegin "Stopping ${RC_SVCNAME}"
+
+    start-stop-daemon --stop --quiet --pidfile "$PID_FILE"
+
+    eend $?
+}
+
+status() {
+    healthcheck && eend 0 || eend 1
+}
+
+healthcheck() {
+    mount | grep -q "/mnt/rclone"
+}

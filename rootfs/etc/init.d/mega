@@ -1,0 +1,88 @@
+#!/sbin/openrc-run
+
+extra_commands="healthcheck"
+
+export SANDBOX_NAME="$RC_SVCNAME"
+export SANDBOX_NUMBER="${RC_SVCNAME##*-}"
+export SANDBOX_PATH="/chroot/${RC_SVCNAME}"
+
+depend() {
+    need nftables
+    before rclone
+}
+
+start_pre() {
+    /opt/mega-smb/sandbox setup_chroot
+    /opt/mega-smb/sandbox setup_network
+
+    for BIN in /bin/sh /usr/bin/mega-*; do
+        DIR="${SANDBOX_PATH}${BIN%/*}"
+        mkdir -p "$DIR"
+        cp "$BIN" "$DIR"
+    done
+
+    for LIB in $(ldd /usr/bin/mega-cmd-server | awk '/=>/ {print $3}'); do
+        DIR="${SANDBOX_PATH}${LIB%/*}"
+        mkdir -p "$DIR"
+        cp "$LIB" "$DIR"
+    done
+
+    . /etc/mega/.env
+
+    # Set up routing tables
+    ip netns exec "$SANDBOX_NAME" nft add table inet filter
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter input "{ type filter hook input priority 0; policy accept; }"
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter output "{ type filter hook output priority 0; policy accept; }"
+
+    # Accept service traffic
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport 10000 accept
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport 10000 accept
+
+    # Throttle incoming connections that exceed the stream limit
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter input \
+        meter active_streams "{ ip daddr . tcp dport timeout 1s limit rate over 1 bytes/second burst 0 bytes }" \
+        meter max_streams "{ ip daddr . tcp dport ct count over ${STREAM_LIMIT} }" \
+        reject with tcp reset
+
+    # Throttle outgoing connections that exceed the transfer limit
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter output \
+        meter active_transfers "{ ip saddr . tcp sport timeout 1s limit rate over 1 bytes/second burst 0 bytes }" \
+        meter max_transfers "{ ip saddr . tcp sport ct count over ${TRANSFER_LIMIT} }" \
+        reject with tcp reset
+}
+
+start() {
+    ebegin "Starting ${RC_SVCNAME}"
+
+    . /etc/mega/.env
+
+    /opt/mega-smb/sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
+
+    ENDPOINT=$(
+        /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
+        | awk '{print $NF}' \
+        | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
+    )
+
+    echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
+
+    sed -i "s|url = #${SANDBOX_NAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
+
+    healthcheck && eend 0 || (stop; eend 1)
+}
+
+stop() {
+    ebegin "Stopping ${RC_SVCNAME}"
+
+    /opt/mega-smb/sandbox /usr/bin/mega-webdav -d --all
+
+    eend $?
+}
+
+status() {
+    healthcheck && eend 0 || eend 1
+}
+
+healthcheck() {
+    (wget -q --spider $(cat "${SANDBOX_PATH}/home/endpoint")) 2> /dev/null
+}
