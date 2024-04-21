@@ -88,7 +88,9 @@ RUN apk add \
         nftables \
         nftables-openrc \
         openrc \
-        sqlite-libs
+        samba \
+        sqlite-libs \
+        tracker
 
 COPY --from=mega /usr/bin/mega-cmd-server /usr/bin/
 COPY --from=mega /usr/bin/mega-exec /usr/bin/

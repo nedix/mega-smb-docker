@@ -9,7 +9,7 @@ up:
         --device /dev/fuse \
         -v /sys/fs/cgroup/mega-smb:/sys/fs/cgroup:rw \
         --env-file .env \
-        -p 127.0.0.1:$(port):445 \
+        -p $(port):445 \
         mega-smb
 
 down:

@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+set -ex
+
 : ${MEGA_DIRECTORY:=/}
 : ${MEGA_EMAIL}
 : ${MEGA_PASSWORD}
@@ -15,6 +17,8 @@
 : ${RCLONE_VFS_READ_AHEAD:=$(( $RCLONE_CHUNK_SIZE * 2 ))}
 : ${RCLONE_VFS_READ_CHUNK_SIZE:=16}
 : ${RCLONE_VFS_READ_CHUNK_SIZE_LIMIT:=64}
+: ${SMB_PASSWORD}
+: ${SMB_USERNAME}
 
 iptables-save | iptables-restore-translate -f /dev/stdin > /etc/nftables.d/iptables.nft
 iptables -F; iptables -X; iptables -P INPUT ACCEPT; iptables -P OUTPUT ACCEPT; iptables -P FORWARD ACCEPT
@@ -23,6 +27,7 @@ apk del iptables
 mkdir -p \
     /etc/mega \
     /etc/rclone \
+    /etc/samba \
     /run/openrc
 
 chmod +x \
@@ -48,6 +53,16 @@ VFS_READ_AHEAD="$RCLONE_VFS_READ_AHEAD"
 VFS_READ_CHUNK_SIZE="$RCLONE_VFS_READ_CHUNK_SIZE"
 VFS_READ_CHUNK_SIZE_LIMIT="$RCLONE_VFS_READ_CHUNK_SIZE_LIMIT"
 EOF
+
+cat << EOF >> /etc/samba/.env
+USERNAME="$SMB_USERNAME"
+PASSWORD="$SMB_PASSWORD"
+EOF
+
+chmod 700 \
+    /etc/mega/.env \
+    /etc/rclone/.env \
+    /etc/samba/.env
 
 ID=0
 REMOTES=""
@@ -93,6 +108,7 @@ fi
 
 rc-update add nftables
 rc-update add rclone
+rc-update add samba
 
 sed -i 's/^tty/#&/' /etc/inittab
 touch /run/openrc/softlevel

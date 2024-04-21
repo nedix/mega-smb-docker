@@ -31,7 +31,7 @@ start() {
         --wait=100 \
         -u nobody \
         --exec /usr/bin/rclone -- \
-        mount default: /mnt/rclone \
+            mount default: /mnt/rclone \
             --config=/etc/rclone/rclone.conf \
             --cache-dir=/var/rclone \
             --buffer-size="$BUFFER_SIZE"M \

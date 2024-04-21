@@ -1,0 +1,50 @@
+#!/sbin/openrc-run
+
+extra_commands="healthcheck"
+
+PID_FILE=/var/run/smbd.pid
+
+depend() {
+    need rclone
+}
+
+start_pre() {
+    [ -f "$PID_FILE" ] && return
+
+    . /etc/samba/.env
+
+    adduser -s /sbin/nologin -D -H "$USERNAME"
+
+    echo "$PASSWORD" | tee - | smbpasswd -s -a "$USERNAME"
+}
+
+start() {
+    ebegin "Starting ${RC_SVCNAME}"
+
+    start-stop-daemon \
+        --start \
+        --background \
+        --make-pidfile \
+        --pidfile="$PID_FILE" \
+        --wait=100 \
+        --exec /usr/sbin/smbd -- \
+            --no-process-group
+
+    healthcheck && eend 0 || (stop; eend 1)
+}
+
+stop() {
+    ebegin "Stopping ${RC_SVCNAME}"
+
+    start-stop-daemon --stop --quiet --pidfile "$PID_FILE"
+
+    eend $?
+}
+
+status() {
+    healthcheck && eend 0 || eend 1
+}
+
+healthcheck() {
+    exit 0
+}
