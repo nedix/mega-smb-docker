@@ -42,7 +42,8 @@ REMOTES=""
 while [ "$ID" -lt "$MEGA_SCALE" ] && [ "$ID" -lt 8 ]; do
     cp "/etc/init.d/mega" "/etc/init.d/mega-${ID}"
     rc-update add "mega-${ID}"
-    REMOTES="${REMOTES}/chroot/mega-${ID}/mnt:"
+    mkdir /mnt/mega-${ID}
+    REMOTES="${REMOTES}/mnt/mega-${ID}:"
     ID=$(($ID + 1))
 done
 rm /etc/init.d/mega
