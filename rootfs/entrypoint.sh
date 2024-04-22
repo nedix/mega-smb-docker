@@ -48,6 +48,8 @@ done
 rm /etc/init.d/mega
 sed -i "s|branches=|branches=${REMOTES%:*}|" /etc/mergerfs/mergerfs.conf
 
+echo "user_allow_other" >> /etc/fuse.conf
+
 rc-update add mergerfs
 rc-update add nftables
 rc-update add samba
