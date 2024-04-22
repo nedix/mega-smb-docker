@@ -8,7 +8,7 @@ export SANDBOX_PATH="/chroot/${RC_SVCNAME}"
 
 depend() {
     need nftables
-    before rclone
+    before mergerfs
 }
 
 start_pre() {
@@ -26,6 +26,12 @@ start_pre() {
         mkdir -p "$DIR"
         cp "$LIB" "$DIR"
     done
+
+    mkdir -p \
+        "${SANDBOX_PATH}/etc/davfs2" \
+        "${SANDBOX_PATH}/mnt"
+
+    cp -r /etc/davfs2/ "${SANDBOX_PATH}/etc/davfs2/"
 
     . /etc/mega/.env
 
@@ -64,15 +70,15 @@ start() {
         | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
     )
 
-    echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
-
-    sed -i "s|url = #${SANDBOX_NAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
+    mount -t davfs "$ENDPOINT" "${SANDBOX_PATH}/mnt"
 
     healthcheck && eend 0 || (stop; eend 1)
 }
 
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
+
+    umount "${SANDBOX_PATH}/mnt"
 
     /opt/mega-smb/sandbox /usr/bin/mega-webdav -d --all
 
@@ -84,5 +90,5 @@ status() {
 }
 
 healthcheck() {
-    (wget -q --spider $(cat "${SANDBOX_PATH}/home/endpoint")) 2> /dev/null
+    mount | grep -q "${SANDBOX_PATH}/mnt"
 }

@@ -36,13 +36,6 @@
       datasourceTemplate: "github-releases",
       packageNameTemplate: "meganz/sdk"
     },
-    {
-      depNameTemplate: "Rclone",
-      fileMatch: ["^Dockerfile$"],
-      matchStrings: ["ARG RCLONE_VERSION=(?<currentValue>.*?)\\n"],
-      datasourceTemplate: "docker",
-      packageNameTemplate: "rclone/rclone"
-    },
   ],
   packageRules: [
     {

@@ -2,7 +2,6 @@ ARG ALPINE_VERSION=3.19
 ARG CRYPTOPP_VERSION=8_9_0
 ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
-ARG RCLONE_VERSION=1.66.0
 
 FROM alpine:${ALPINE_VERSION} as mega
 
@@ -68,14 +67,15 @@ RUN curl -fsSL "https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_V
     && make -j $(nproc) \
     && make install
 
-FROM rclone/rclone:${RCLONE_VERSION} as rclone
-
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add \
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+    && echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories \
+    && apk add \
         c-ares \
         conntrack-tools \
         crypto++ \
+        davfs2 \
         freeimage \
         fuse3 \
         iproute2 \
@@ -85,6 +85,7 @@ RUN apk add \
         libsodium \
         libstdc++ \
         libuv \
+        mergerfs \
         nftables \
         nftables-openrc \
         openrc \
@@ -96,14 +97,11 @@ COPY --from=mega /usr/bin/mega-cmd-server /usr/bin/
 COPY --from=mega /usr/bin/mega-exec /usr/bin/
 COPY --from=mega /usr/bin/mega-login /usr/bin/
 COPY --from=mega /usr/bin/mega-webdav /usr/bin/
-COPY --from=rclone /usr/local/bin/rclone /usr/bin/
 
 ADD rootfs /
 
 ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 445/tcp
-
-VOLUME /var/rclone
 
 HEALTHCHECK CMD rc-status -C sysinit | awk 'NR>1 && !(/started/) {exit 1}'

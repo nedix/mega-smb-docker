@@ -2,20 +2,17 @@
 
 extra_commands="healthcheck"
 
-PID_FILE=/var/run/smbd.pid
+PID_FILE=/var/run/mergerfs.pid
 
 depend() {
-    need mergerfs
+    before samba
 }
 
 start_pre() {
     [ -f "$PID_FILE" ] && return
 
-    . /etc/samba/.env
-
-    adduser -s /sbin/nologin -D -H "$USERNAME"
-
-    echo "$PASSWORD" | tee - | smbpasswd -s -a "$USERNAME"
+    mkdir -p \
+        /mnt/mergerfs
 }
 
 start() {
@@ -27,8 +24,10 @@ start() {
         --make-pidfile \
         --pidfile="$PID_FILE" \
         --wait=100 \
-        --exec /usr/sbin/smbd -- \
-            --no-process-group
+        --exec /usr/bin/mergerfs -- \
+            -f \
+            -o config=/etc/mergerfs/mergerfs.conf \
+            /mnt/mergerfs
 
     healthcheck && eend 0 || (stop; eend 1)
 }
@@ -46,5 +45,5 @@ status() {
 }
 
 healthcheck() {
-    exit 0
+    mount | grep -q /mnt/mergerfs
 }
