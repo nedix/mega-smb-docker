@@ -9,7 +9,7 @@ ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
-RUN apk add --virtual .build-deps \
+RUN apk add \
         autoconf \
         automake \
         c-ares-dev \
@@ -75,9 +75,10 @@ RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/reposi
         c-ares \
         conntrack-tools \
         crypto++ \
-        davfs2 \
+        dbus-x11 \
         freeimage \
-        fuse3 \
+        gvfs-dav \
+        gvfs-fuse \
         iproute2 \
         iptables \
         libcurl \

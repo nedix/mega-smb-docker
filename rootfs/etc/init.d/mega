@@ -16,6 +16,10 @@ start_pre() {
     /opt/mega-smb/sandbox setup_chroot
     /opt/mega-smb/sandbox setup_network
 
+    mkdir -p \
+        "/mnt/${SANDBOX_NAMESPACE}" \
+        "/root/.gvfs"
+
     for BIN in \
         /bin/sh \
         /usr/bin/mega-* \
@@ -67,10 +71,14 @@ start() {
     ENDPOINT=$(
         /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
         | awk '{print $NF}' \
-        | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
+        | sed "s|http://127.0.0.1|dav://10.0.${SANDBOX_NUMBER}.0|"
     )
 
-    mount -t davfs "$ENDPOINT" "/mnt/${SANDBOX_NAMESPACE}"
+    GVFS_REMOTE_VOLUME_MONITOR_IGNORE=true dbus-launch gio mount "$ENDPOINT"
+
+    MOUNTPOINT="$(ls -td /root/.gvfs/*/ | head -1)"
+
+    mount --bind "$MOUNTPOINT" "/mnt/${SANDBOX_NAMESPACE}"
 
     healthcheck && eend 0 || (stop; eend 1)
 }
