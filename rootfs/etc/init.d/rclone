@@ -4,18 +4,34 @@ extra_commands="healthcheck"
 
 PID_FILE=/var/run/rclone.pid
 
+depend() {
+    before samba
+}
+
 start_pre() {
     [ -f "$PID_FILE" ] && return
 
     mkdir -p \
         /mnt/rclone \
-        /var/rclone
-
-    chown nobody \
-        /mnt/rclone \
-        /var/rclone
+        /tmp/rclone
 
     echo "user_allow_other" >> /etc/fuse.conf
+
+    su mega-smb -s /bin/sh -c "
+        export \$(cat /home/mega-smb/dbus/.env)
+        pkill gvfsd-fuse
+        /usr/libexec/gvfs/gvfsd-fuse -o allow_other /home/mega-smb/.gvfs
+    "
+
+    I=0; for GVFS_MOUNTPOINT in $(su mega-smb -s /bin/sh -c "ls -td /home/mega-smb/.gvfs/*/"); do
+cat << EOF >> /etc/rclone/rclone.conf
+[mega-${I}]
+type = alias
+remote = local:${GVFS_MOUNTPOINT}
+EOF
+        sed -ri "s|(upstreams =.*)|\1 mega-${I}:|" /etc/rclone/rclone.conf
+        I=$(($I + 1))
+    done
 }
 
 start() {
@@ -29,31 +45,37 @@ start() {
         --make-pidfile \
         --pidfile="$PID_FILE" \
         --wait=100 \
-        -u nobody \
         --exec /usr/bin/rclone -- \
-            mount default: /mnt/rclone \
+        mount remote: /mnt/rclone \
             --config=/etc/rclone/rclone.conf \
-            --cache-dir=/var/rclone \
-            --buffer-size="$BUFFER_SIZE"M \
-            --checkers="$TRANSFER_LIMIT" \
-            --cutoff-mode=soft \
-            --multi-thread-chunk-size="$CHUNK_SIZE"M \
-            --multi-thread-cutoff="$CHUNK_SIZE"M \
-            --multi-thread-streams="$STREAM_LIMIT" \
-            --noappledouble=false \
-            --transfers="$TRANSFER_LIMIT" \
-            --vfs-cache-max-size="$VFS_CACHE_MAX_SIZE"M \
-            --vfs-cache-mode=full \
-            --vfs-read-ahead="$VFS_READ_AHEAD"M \
-            --vfs-read-chunk-size-limit="$VFS_READ_CHUNK_SIZE_LIMIT"M \
-            --vfs-read-chunk-size="$VFS_READ_CHUNK_SIZE"M \
+            --cache-dir=/tmp/rclone \
             --allow-other \
+            --buffer-size=0 \
             --check-first \
-            --disable-http-keep-alives \
-            --links \
-            --metadata \
+            --checkers="$STREAM_LIMIT" \
+            --cutoff-mode=soft \
+            --fast-list \
+            --multi-thread-chunk-size=1MiB \
+            --multi-thread-cutoff=1MiB \
+            --multi-thread-streams="$STREAM_LIMIT" \
+            --no-checksum \
+            --no-traverse \
+            --no-update-dir-modtime \
+            --no-update-modtime \
+            --noappledouble=false \
             --server-side-across-configs \
-            --vfs-refresh
+            --transfers="$TRANSFER_LIMIT" \
+            --use-mmap \
+            --use-server-modtime \
+            --vfs-cache-max-size="$VFS_CACHE_MAX_SIZE"MiB \
+            --vfs-cache-mode=full \
+            --vfs-disk-space-total-size=1PiB \
+            --vfs-fast-fingerprint \
+            --vfs-read-ahead=0 \
+            --vfs-read-chunk-size=0 \
+            --vfs-read-wait=0 \
+            --vfs-write-back=1 \
+            --vfs-write-wait=0
 
     healthcheck && eend 0 || (stop; eend 1)
 }
@@ -71,5 +93,6 @@ status() {
 }
 
 healthcheck() {
+    exit 0
     mount | grep -q "/mnt/rclone"
 }
