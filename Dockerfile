@@ -1,5 +1,7 @@
 ARG ALPINE_VERSION=3.19
 ARG CRYPTOPP_VERSION=8_9_0
+ARG FUSEDAV_VERSION=3.0.0
+ARG GO_VERSION=1.22.2
 ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
 ARG RCLONE_VERSION=1.66.0
@@ -10,7 +12,7 @@ ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
-RUN apk add --virtual .build-deps \
+RUN apk add \
         autoconf \
         automake \
         c-ares-dev \
@@ -68,19 +70,62 @@ RUN curl -fsSL "https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_V
     && make -j $(nproc) \
     && make install
 
+FROM alpine:${ALPINE_VERSION} as fusedav
+
+ARG FUSEDAV_VERSION
+
+WORKDIR /build/fusedav
+
+RUN apk add \
+        attr-dev \
+        autoconf \
+        automake \
+        build-base \
+        curl \
+        curl-dev \
+        dbus-dev \
+        elogind-dev \
+        fuse-dev \
+        glib-dev \
+        jemalloc-dev \
+        leveldb-dev \
+        neon-dev \
+        uriparser-dev \
+        yaml-dev \
+    && curl -fsSL "https://github.com/pantheon-systems/fusedav/archive/refs/tags/v${FUSEDAV_VERSION}/v${FUSEDAV_VERSION}.tar.gz" \
+    | tar -xz --strip-components=1 \
+    && autoupdate \
+    && automake --add-missing || true \
+    && autoconf || true \
+    && ./autogen.sh \
+    && echo "#define PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP {{PTHREAD_MUTEX_RECURSIVE}}" > musl.h \
+    && export CFLAGS="-g -O0 -include musl.h" \
+    && export LEVELDB_CFLAGS="-I/usr/include" \
+    && export LEVELDB_LIBS="-L/usr/lib -lleveldb" \
+    && ./configure --prefix=/usr \
+    && make -j $(nproc) \
+    && mv ./src/fusedav /usr/bin/fusedav
+
 FROM rclone/rclone:${RCLONE_VERSION} as rclone
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add \
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+    && echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories \
+    && apk add \
         c-ares \
         conntrack-tools \
         crypto++ \
+        dbus-x11 \
         freeimage \
+        fuse \
         fuse3 \
         iproute2 \
         iptables \
+        jemalloc \
+        leveldb \
         libcurl \
+        libelogind \
         libgcc \
         libsodium \
         libstdc++ \
@@ -90,12 +135,14 @@ RUN apk add \
         openrc \
         samba \
         sqlite-libs \
-        tracker
+        tracker \
+        uriparser
 
 COPY --from=mega /usr/bin/mega-cmd-server /usr/bin/
 COPY --from=mega /usr/bin/mega-exec /usr/bin/
 COPY --from=mega /usr/bin/mega-login /usr/bin/
 COPY --from=mega /usr/bin/mega-webdav /usr/bin/
+COPY --from=fusedav /usr/bin/fusedav /usr/bin/
 COPY --from=rclone /usr/local/bin/rclone /usr/bin/
 
 ADD rootfs /
@@ -103,7 +150,5 @@ ADD rootfs /
 ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 445/tcp
-
-VOLUME /var/rclone
 
 HEALTHCHECK CMD rc-status -C sysinit | awk 'NR>1 && !(/started/) {exit 1}'

@@ -23,6 +23,13 @@
       packageNameTemplate: "weidai11/cryptopp",
     },
     {
+      depNameTemplate: "Go",
+      fileMatch: ["^Dockerfile$"],
+      matchStrings: ["ARG GO_VERSION=(?<currentValue>.*?)\\n"],
+      datasourceTemplate: "docker",
+      packageNameTemplate: "golang",
+    },
+    {
       depNameTemplate: "MEGAcmd",
       fileMatch: ["^Dockerfile$"],
       matchStrings: ["ARG MEGA_CMD_VERSION=(?<currentValue>.*?)\\n"],
@@ -42,6 +49,15 @@
       matchStrings: ["ARG RCLONE_VERSION=(?<currentValue>.*?)\\n"],
       datasourceTemplate: "docker",
       packageNameTemplate: "rclone/rclone"
+    },
+    {
+      depNameTemplate: "fusedav",
+      fileMatch: ["^Dockerfile$"],
+      matchStrings: ["ARG FUSEDAV_VERSION=(?<currentDigest>.*?)\\n"],
+      datasourceTemplate: "git-refs",
+      packageNameTemplate: "https://github.com/pantheon-systems/fusedav",
+      currentValueTemplate: "master",
+      versioningTemplate: "git"
     },
   ],
   packageRules: [

@@ -2,20 +2,24 @@
 
 : ${SANDBOX_NAME:="sbx-0"}
 : ${SANDBOX_NUMBER:="${SANDBOX_NAME##*-}"}
-: ${SANDBOX_PATH:="/chroot/${SANDBOX_NAME}"}
+: ${SANDBOX_PATH:="/home/${SANDBOX_NAME}"}
+: ${SANDBOX_USER:="${SANDBOX_NAME}"}
 
 setup_chroot() {
+    adduser -s /sbin/nologin -D -h "$SANDBOX_PATH" -G mega-smb "$SANDBOX_USER"
+
     mkdir -p \
         "${SANDBOX_PATH}/dev" \
-        "${SANDBOX_PATH}/home" \
+        "${SANDBOX_PATH}/proc" \
         "${SANDBOX_PATH}/tmp"
 
-    chown nobody \
-        "${SANDBOX_PATH}/home" \
+    chown -R "$SANDBOX_USER" \
         "${SANDBOX_PATH}/tmp"
 
     mknod -m 0666 "${SANDBOX_PATH}/dev/null" c 1 3
     mknod -m 0666 "${SANDBOX_PATH}/dev/urandom" c 1 9
+
+    mount proc "${SANDBOX_PATH}/proc" -t proc
 }
 
 setup_network() {
@@ -47,12 +51,12 @@ setup_network() {
 sandbox() {
     CMD="$@"
 
-    ip netns exec "$SANDBOX_NAME" su -s /bin/sh -c " \
-        export HOME=/home
+    ip netns exec "$SANDBOX_NAME" su -s /bin/sh -c "
+        export HOME=
         unshare -r \
         chroot ${SANDBOX_PATH} \
         ${CMD}
-    " nobody
+    " "$SANDBOX_USER"
 }
 
 if type "$1" | grep -q "function"; then "$1"; else sandbox "$@"; fi
