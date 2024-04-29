@@ -10,7 +10,7 @@ ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
-RUN apk add --virtual .build-deps \
+RUN apk add \
         autoconf \
         automake \
         c-ares-dev \
@@ -72,12 +72,17 @@ FROM rclone/rclone:${RCLONE_VERSION} as rclone
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add \
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+    && echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories \
+    && apk add \
         c-ares \
         conntrack-tools \
         crypto++ \
+        dbus-x11 \
         freeimage \
         fuse3 \
+        gvfs-dav \
+        gvfs-fuse \
         iproute2 \
         iptables \
         libcurl \
@@ -103,7 +108,5 @@ ADD rootfs /
 ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 445/tcp
-
-VOLUME /var/rclone
 
 HEALTHCHECK CMD rc-status -C sysinit | awk 'NR>1 && !(/started/) {exit 1}'

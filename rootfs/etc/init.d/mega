@@ -4,7 +4,7 @@ extra_commands="healthcheck"
 
 export SANDBOX_NAME="$RC_SVCNAME"
 export SANDBOX_NUMBER="${RC_SVCNAME##*-}"
-export SANDBOX_PATH="/chroot/${RC_SVCNAME}"
+export SANDBOX_PATH="/home/${SANDBOX_NAME}"
 
 depend() {
     need nftables
@@ -15,13 +15,18 @@ start_pre() {
     /opt/mega-smb/sandbox setup_chroot
     /opt/mega-smb/sandbox setup_network
 
-    for BIN in /bin/sh /usr/bin/mega-*; do
+    for BIN in \
+        /bin/sh \
+        /usr/bin/mega-* \
+    ; do
         DIR="${SANDBOX_PATH}${BIN%/*}"
         mkdir -p "$DIR"
         cp "$BIN" "$DIR"
     done
 
-    for LIB in $(ldd /usr/bin/mega-cmd-server | awk '/=>/ {print $3}'); do
+    for LIB in \
+        $(ldd /usr/bin/mega-cmd-server | awk '/=>/ {print $3}') \
+    ; do
         DIR="${SANDBOX_PATH}${LIB%/*}"
         mkdir -p "$DIR"
         cp "$LIB" "$DIR"
@@ -61,18 +66,22 @@ start() {
     ENDPOINT=$(
         /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
         | awk '{print $NF}' \
-        | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
+        | sed "s|http://127.0.0.1|dav://10.0.${SANDBOX_NUMBER}.0|"
     )
 
-    echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
-
-    sed -i "s|url = #${SANDBOX_NAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
+    su mega-smb -s /bin/sh -c "
+        export \$(cat /home/mega-smb/dbus/.env)
+        GVFS_REMOTE_VOLUME_MONITOR_IGNORE=true \
+        gio mount ${ENDPOINT}
+    "
 
     healthcheck && eend 0 || (stop; eend 1)
 }
 
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
+
+    umount "/mnt/${SANDBOX_NAME}"
 
     /opt/mega-smb/sandbox /usr/bin/mega-webdav -d --all
 
@@ -84,5 +93,6 @@ status() {
 }
 
 healthcheck() {
-    (wget -q --spider $(cat "${SANDBOX_PATH}/home/endpoint")) 2> /dev/null
+    exit 0
+    mount | grep -q "/mnt/${SANDBOX_NAME}"
 }
