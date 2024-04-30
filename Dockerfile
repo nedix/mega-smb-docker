@@ -1,8 +1,10 @@
 ARG ALPINE_VERSION=3.19
 ARG CRYPTOPP_VERSION=8_9_0
+ARG GO_VERSION=1.22.2
 ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
 ARG RCLONE_VERSION=1.66.0
+ARG WEBDAVFS_VERSION=7904f8e
 
 FROM alpine:${ALPINE_VERSION} as mega
 
@@ -10,7 +12,7 @@ ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
-RUN apk add --virtual .build-deps \
+RUN apk add \
         autoconf \
         automake \
         c-ares-dev \
@@ -70,13 +72,32 @@ RUN curl -fsSL "https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_V
 
 FROM rclone/rclone:${RCLONE_VERSION} as rclone
 
-FROM alpine:${ALPINE_VERSION}
+FROM golang:${GO_VERSION}-alpine${ALPINE_VERSION} as webdavfs
+
+ARG WEBDAVFS_VERSION
+
+WORKDIR /build/webdavfs
 
 RUN apk add \
+        git \
+    && export CGO_ENABLED=0 \
+    && git clone --no-checkout https://github.com/miquels/webdavfs.git . \
+    && git checkout "$WEBDAVFS_VERSION" \
+    && sed -i "s|isApache := .*|isApache := true; d.IsApache = true|" webdav.go \
+    && go get \
+    && go build
+
+FROM alpine:${ALPINE_VERSION}
+
+RUN echo https://dl-cdn.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories \
+    && echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories \
+    && apk add \
         c-ares \
         conntrack-tools \
         crypto++ \
+        dbus-x11 \
         freeimage \
+        fuse \
         fuse3 \
         iproute2 \
         iptables \
@@ -97,13 +118,12 @@ COPY --from=mega /usr/bin/mega-exec /usr/bin/
 COPY --from=mega /usr/bin/mega-login /usr/bin/
 COPY --from=mega /usr/bin/mega-webdav /usr/bin/
 COPY --from=rclone /usr/local/bin/rclone /usr/bin/
+COPY --from=webdavfs /build/webdavfs/webdavfs /sbin/mount.webdavfs
 
 ADD rootfs /
 
 ENTRYPOINT ["/entrypoint.sh"]
 
 EXPOSE 445/tcp
-
-VOLUME /var/rclone
 
 HEALTHCHECK CMD rc-status -C sysinit | awk 'NR>1 && !(/started/) {exit 1}'
