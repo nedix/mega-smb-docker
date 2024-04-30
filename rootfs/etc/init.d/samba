@@ -28,6 +28,7 @@ start() {
         --pidfile="$PID_FILE" \
         --wait=100 \
         --exec /usr/sbin/smbd -- \
+            --foreground \
             --no-process-group
 
     healthcheck && eend 0 || (stop; eend 1)
