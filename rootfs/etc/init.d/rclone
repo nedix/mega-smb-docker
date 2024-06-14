@@ -55,7 +55,6 @@ start() {
             --transfers="$TRANSFER_LIMIT" \
             --use-mmap \
             --use-server-modtime \
-            --vfs-cache-max-age=0 \
             --vfs-cache-max-size="$VFS_CACHE_MAX_SIZE"MiB \
             --vfs-cache-mode=full \
             --vfs-disk-space-total-size=1PiB \
