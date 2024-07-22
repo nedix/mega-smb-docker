@@ -43,6 +43,7 @@ start() {
             --check-first \
             --checkers="$STREAM_LIMIT" \
             --cutoff-mode=soft \
+            --direct-io \
             --multi-thread-chunk-size=1MiB \
             --multi-thread-cutoff=1MiB \
             --multi-thread-streams="$STREAM_LIMIT" \
