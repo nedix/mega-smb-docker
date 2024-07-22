@@ -1,7 +1,7 @@
 setup:
 	@docker build . -t mega-smb
 
-up: port = 445
+up: PORT = 445
 up:
 	@docker run --rm --name mega-smb \
         --cap-add NET_ADMIN \
@@ -9,7 +9,7 @@ up:
         --device /dev/fuse \
         -v /sys/fs/cgroup/mega-smb:/sys/fs/cgroup:rw \
         --env-file .env \
-        -p $(port):445 \
+        -p $(PORT):445 \
         mega-smb
 
 down:
