@@ -53,6 +53,7 @@ start() {
             --no-update-modtime \
             --noappledouble=false \
             --server-side-across-configs \
+            --timeout=0 \
             --transfers="$TRANSFER_LIMIT" \
             --use-mmap \
             --use-server-modtime \
