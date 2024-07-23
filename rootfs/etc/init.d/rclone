@@ -50,7 +50,6 @@ start() {
             --no-checksum \
             --no-traverse \
             --no-update-dir-modtime \
-            --no-update-modtime \
             --noappledouble=false \
             --server-side-across-configs \
             --timeout=0 \
