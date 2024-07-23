@@ -51,6 +51,7 @@ start() {
             --no-traverse \
             --no-update-dir-modtime \
             --noappledouble=false \
+            --poll-interval=100ms \
             --server-side-across-configs \
             --timeout=0 \
             --transfers="$TRANSFER_LIMIT" \
