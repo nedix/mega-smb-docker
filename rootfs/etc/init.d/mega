@@ -27,24 +27,24 @@ start_pre() {
         cp "$LIB" "$DIR"
     done
 
-    . /etc/mega/.env
-
-    # Set up routing tables
+    # Setup routing tables.
     ip netns exec "$SANDBOX_NAME" nft add table inet filter
     ip netns exec "$SANDBOX_NAME" nft add chain inet filter input "{ type filter hook input priority 0; policy accept; }"
     ip netns exec "$SANDBOX_NAME" nft add chain inet filter output "{ type filter hook output priority 0; policy accept; }"
 
-    # Accept service traffic
+    # Always accept service traffic.
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport 10000 accept
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport 10000 accept
 
-    # Throttle incoming connections that exceed the stream limit
+    . /etc/mega/.env
+
+    # Throttle incoming connections that exceed the stream limit.
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input \
         meter active_streams "{ ip daddr . tcp dport timeout 1s limit rate over 1 bytes/second burst 0 bytes }" \
         meter max_streams "{ ip daddr . tcp dport ct count over ${STREAM_LIMIT} }" \
         reject with tcp reset
 
-    # Throttle outgoing connections that exceed the transfer limit
+    # Throttle outgoing connections that exceed the transfer limit.
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output \
         meter active_transfers "{ ip saddr . tcp sport timeout 1s limit rate over 1 bytes/second burst 0 bytes }" \
         meter max_transfers "{ ip saddr . tcp sport ct count over ${TRANSFER_LIMIT} }" \
@@ -58,11 +58,11 @@ start() {
 
     /opt/mega-smb/sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    ENDPOINT=$(
+    local ENDPOINT="$(
         /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
         | awk '{print $NF}' \
         | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
-    )
+    )"
 
     echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
 

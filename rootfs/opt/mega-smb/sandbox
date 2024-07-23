@@ -19,23 +19,23 @@ setup_chroot() {
 }
 
 setup_network() {
-    DEVICE="${SANDBOX_NAME//-/}"
+    local DEVICE="${SANDBOX_NAME//-/}"
 
-    # Create a network namespace
+    # Create a network namespace.
     ip netns add "$SANDBOX_NAME"
 
-    # Create a bridge device on the host
+    # Create a bridge device on the host.
     ip link add br0 type bridge || true
     ip link set br0 up
     ip addr add "10.0.${SANDBOX_NUMBER}.1" dev br0
     ip route add "10.0.${SANDBOX_NUMBER}.0" dev br0
 
-    # Create a veth pair on the host
+    # Create a veth pair on the host.
     ip link add "$DEVICE" type veth peer name veth
     ip link set "$DEVICE" master br0
     ip link set "$DEVICE" up
 
-    # Move one end of the veth pair into the namespace
+    # Move one end of the veth pair into the namespace.
     ip link set veth netns "$SANDBOX_NAME"
     ip netns exec "$SANDBOX_NAME" ip link set veth name eth0
     ip netns exec "$SANDBOX_NAME" ip link set eth0 up
@@ -45,7 +45,7 @@ setup_network() {
 }
 
 sandbox() {
-    CMD="$@"
+    local CMD="$@"
 
     ip netns exec "$SANDBOX_NAME" su -s /bin/sh -c " \
         export HOME=/home
