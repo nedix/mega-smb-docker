@@ -2,7 +2,7 @@
 
 extra_commands="healthcheck"
 
-PID_FILE=/var/run/smbd.pid
+PID_FILE="/var/run/${RC_SVCNAME}.pid"
 
 depend() {
     need rclone

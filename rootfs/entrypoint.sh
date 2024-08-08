@@ -30,6 +30,7 @@ mkdir -p \
 chmod +x \
     /entrypoint.sh \
     /etc/init.d/mega \
+    /etc/init.d/squid \
     /etc/init.d/rclone
 
 cat << EOF >> /etc/mega/.env
@@ -71,11 +72,16 @@ vendor = other
 url = #mega-${ID}-url
 EOF
     cp "/etc/init.d/mega" "/etc/init.d/mega-${ID}"
+    cp "/etc/init.d/squid" "/etc/init.d/squid-${ID}"
+
     rc-update add "mega-${ID}"
+    rc-update add "squid-${ID}"
+
     REMOTES="${REMOTES}mega-${ID}: "
     ID=$(($ID + 1))
 done
 rm /etc/init.d/mega
+rm /etc/init.d/squid
 
 if [ "$MEGA_SCALE" -gt 1 ]; then
 cat << EOF >> /etc/rclone/rclone.conf

@@ -1,16 +1,17 @@
 ARG ALPINE_VERSION=3.20
 ARG CRYPTOPP_VERSION=8_9_0
 ARG MEGA_CMD_VERSION=1.6.3
+ARG MEGA_ECAP_ADAPTER_VERSION=development
 ARG MEGA_SDK_VERSION=4.17.1d
 ARG RCLONE_VERSION=1.67.0
 
-FROM alpine:${ALPINE_VERSION} as mega
+FROM alpine:${ALPINE_VERSION} AS mega
 
 ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
-RUN apk add --virtual .build-deps \
+RUN apk add \
         autoconf \
         automake \
         c-ares-dev \
@@ -68,7 +69,33 @@ RUN curl -fsSL "https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_V
     && make -j $(nproc) \
     && make install
 
-FROM rclone/rclone:${RCLONE_VERSION} as rclone
+FROM alpine:${ALPINE_VERSION} AS mega-ecap-adapter
+
+ARG MEGA_ECAP_ADAPTER_VERSION
+
+WORKDIR /build/mega-ecap-adapter
+
+RUN apk add \
+        autoconf \
+        automake \
+        g++ \
+        git \
+        libtool \
+        make \
+    && echo "http://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
+    && echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories \
+    && echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories \
+    && apk add \
+        libecap \
+    && git init . \
+    && git remote add -t \* -f origin https://github.com/nedix/mega-ecap-adapter.git \
+    && git checkout "$MEGA_ECAP_ADAPTER_VERSION" \
+    && ./bootstrap.sh \
+    && ./configure \
+    && make -j $(nproc) \
+    && make install
+
+FROM rclone/rclone:${RCLONE_VERSION} AS rclone
 
 FROM alpine:${ALPINE_VERSION}
 
@@ -90,12 +117,14 @@ RUN apk add \
         openrc \
         samba \
         sqlite-libs \
+        squid \
         tracker
 
 COPY --from=mega /usr/bin/mega-cmd-server /usr/bin/
 COPY --from=mega /usr/bin/mega-exec /usr/bin/
 COPY --from=mega /usr/bin/mega-login /usr/bin/
 COPY --from=mega /usr/bin/mega-webdav /usr/bin/
+COPY --from=mega-ecap-adapter /usr/local/lib/mega_ecap_adapter.so /usr/local/lib/
 COPY --from=rclone /usr/local/bin/rclone /usr/bin/
 
 ADD rootfs /

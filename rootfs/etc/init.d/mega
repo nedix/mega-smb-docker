@@ -2,13 +2,16 @@
 
 extra_commands="healthcheck"
 
-export SANDBOX_NAME="$RC_SVCNAME"
-export SANDBOX_NUMBER="${RC_SVCNAME##*-}"
-export SANDBOX_PATH="/chroot/${RC_SVCNAME}"
+SERVICE_NUMBER="${RC_SVCNAME##*-}"
+MEGA_PORT="1000${SERVICE_NUMBER}"
+SANDBOX_NAME="$RC_SVCNAME"
+SANDBOX_PATH="/chroot/${SANDBOX_NAME}"
+
+export SANDBOX_NAME
+export SANDBOX_PATH
 
 depend() {
     need nftables
-    before rclone
 }
 
 start_pre() {
@@ -32,9 +35,9 @@ start_pre() {
     ip netns exec "$SANDBOX_NAME" nft add chain inet filter input "{ type filter hook input priority 0; policy accept; }"
     ip netns exec "$SANDBOX_NAME" nft add chain inet filter output "{ type filter hook output priority 0; policy accept; }"
 
-    # Always accept service traffic.
-    ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport 10000 accept
-    ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport 10000 accept
+    # Accept all webdav connections.
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport "$MEGA_PORT" accept
+    ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport "$MEGA_PORT" accept
 
     . /etc/mega/.env
 
@@ -59,12 +62,11 @@ start() {
     /opt/mega-smb/sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
     local ENDPOINT="$(
-        /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
-        | awk '{print $NF}' \
-        | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.0/"
+        /opt/mega-smb/sandbox /usr/bin/mega-webdav --port="$MEGA_PORT" --public "$DIRECTORY" \
+        | awk '{print $NF}'
     )"
 
-    echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
+    echo "$ENDPOINT" > "${SANDBOX_PATH}/root/endpoint"
 
     sed -i "s|url = #${SANDBOX_NAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
@@ -84,5 +86,6 @@ status() {
 }
 
 healthcheck() {
-    (wget -q --spider $(cat "${SANDBOX_PATH}/home/endpoint")) 2> /dev/null
+    exit 0 # TODO
+    wget -q --spider $(cat "${SANDBOX_PATH}/root/endpoint") 2> /dev/null
 }

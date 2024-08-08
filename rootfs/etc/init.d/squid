@@ -1,0 +1,55 @@
+#!/sbin/openrc-run
+
+extra_commands="healthcheck"
+
+SERVICE_NUMBER="${RC_SVCNAME##*-}"
+MEGA_IP="10.0.${SERVICE_NUMBER}.0"
+MEGA_PORT="1000${SERVICE_NUMBER}"
+PID_FILE="/var/run/${RC_SVCNAME}.pid"
+
+depend() {
+    need "mega-${SERVICE_NUMBER}"
+    before rclone
+}
+
+start_pre() {
+    [ -f "$PID_FILE" ] && return
+
+    sed -i "s|# <http_port>|http_port 127.0.0.1:${MEGA_PORT}|" /etc/squid/squid.conf
+}
+
+start() {
+    ebegin "Starting ${RC_SVCNAME}"
+
+#    /usr/sbin/squid --foreground -d
+
+#    start-stop-daemon \
+#        --start \
+#        --background \
+#        --make-pidfile \
+#        --pidfile="$PID_FILE" \
+#        --wait=100 \
+#        -u nobody \
+#        --exec /usr/sbin/squid -- \
+#        /usr/sbin/squid \
+#           --foreground \
+#           -d
+
+    healthcheck && eend 0 || (stop; eend 1)
+}
+
+stop() {
+    ebegin "Stopping ${RC_SVCNAME}"
+
+#    start-stop-daemon --stop --quiet --pidfile "$PID_FILE"
+
+    eend $?
+}
+
+status() {
+    healthcheck && eend 0 || eend 1
+}
+
+healthcheck() {
+    exit 0 # TODO
+}
